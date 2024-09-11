@@ -20,9 +20,9 @@ all_first:
 	curl -X PUT -H "Content-Type: application/json" -d @./data/movies_index.json "localhost:9200/movies?pretty"
 	curl -X PUT -H "Content-Type: application/json" -d @./data/genres_index.json "localhost:9200/genres?pretty"
 	curl -X PUT -H "Content-Type: application/json" -d @./data/persons_index.json "localhost:9200/persons?pretty"
-	docker run -ti -v ~/Dev/async_api_sprint_2/data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/movies_data.json --output=http://elastic:9200/movies
-	docker run -ti -v ~/Dev/async_api_sprint_2/data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/genres_data.json --output=http://elastic:9200/genres
-	docker run -ti -v ~/Dev/async_api_sprint_2/data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/persons_data.json --output=http://elastic:9200/persons
+	docker run -ti -v ./data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/movies_data.json --output=http://elastic:9200/movies
+	docker run -ti -v ./data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/genres_data.json --output=http://elastic:9200/genres
+	docker run -ti -v ./data/:/data --network=async_api_sprint_2_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/persons_data.json --output=http://elastic:9200/persons
 
 stop:
 	docker-compose -f docker-compose.yml -f app/docker-compose.yml -f tests/functional/docker-compose.yml down
