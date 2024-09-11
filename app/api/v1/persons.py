@@ -27,16 +27,16 @@ class Person(OrjsonBaseModel):
 
 
 @router.get(
-    '/search',
+    "/search",
     response_model=list[Person],
-    summary='Поиск по персонажам',
-    description='Получить список персонажей, отвечающих условиям запроса'
+    summary="Поиск по персонажам",
+    description="Получить список персонажей, отвечающих условиям запроса",
 )
 async def person_search_list(
     person_service: PersonService = Depends(get_person_service),
     page_size: Annotated[int, Query(description="Персонажей на страницу", ge=1)] = 50,
     page_number: Annotated[int, Query(description="Номер страницы", ge=1)] = 1,
-    query: Annotated[str, Query(description="Запрос")] = "Query"
+    query: Annotated[str, Query(description="Запрос")] = "Query",
 ):
     persons = await person_service.get_search_list(query, page_number, page_size)
     persons_response = []
@@ -44,19 +44,20 @@ async def person_search_list(
         films = []
         for film in person.films:
             films.append(PersonFilm(uuid=film.id, roles=film.roles))
-        persons_response.append(Person(uuid=person.id, full_name=person.full_name, films=films))
+        persons_response.append(
+            Person(uuid=person.id, full_name=person.full_name, films=films)
+        )
     return persons_response
 
 
 @router.get(
-    '/{person_id}/film',
+    "/{person_id}/film",
     response_model=list[Film],
-    summary='Фильмы по персонажам',
-    description='Получить список фильмов, в которых участвовала персона'
+    summary="Фильмы по персонажам",
+    description="Получить список фильмов, в которых участвовала персона",
 )
 async def person_film_list(
-    person_id: UUID,
-    person_service: PersonService = Depends(get_person_service)
+    person_id: UUID, person_service: PersonService = Depends(get_person_service)
 ):
     films = await person_service.get_person_film_list(person_id)
 
@@ -67,17 +68,20 @@ async def person_film_list(
 
 
 @router.get(
-    '/{person_id}',
+    "/{person_id}",
     response_model=Person,
-    summary='Страница персонажа',
-    description='Данные по конкретному персонажу'
+    summary="Страница персонажа",
+    description="Данные по конкретному персонажу",
 )
-async def person_details(person_id: UUID, person_service: PersonService = Depends(get_person_service)) -> Person:
+async def person_details(
+    person_id: UUID, person_service: PersonService = Depends(get_person_service)
+) -> Person:
     person = await person_service.get_by_id(person_id)
 
     if not person:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=f"person with id {person_id} not found"
+            status_code=HTTPStatus.NOT_FOUND,
+            detail=f"person with id {person_id} not found",
         )
     films = []
     for film in person.films:
