@@ -6,3 +6,4 @@ uvicorn[standard]==0.30.6
 gunicorn==23.0.0
 urllib3==1.26.15
 pydantic-settings==2.4.0
+pytest==8.3.3
