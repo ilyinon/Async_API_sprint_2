@@ -1,0 +1,5 @@
+-r app/requirements.txt
+
+flake8==7.1.1
+isort==5.13.2
+pre-commit==3.8.0
