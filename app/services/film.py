@@ -11,28 +11,18 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
 from models.film import Film, FilmDetail
 from redis.asyncio import Redis
+from services.base import BaseServiceElastic, BaseServiceRedis
 
 logger = logging.getLogger(__name__)
 
 
-class FilmService:
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
-        self.redis = redis
-        self.elastic = elastic
-
-    async def get_by_id(self, film_id: UUID) -> FilmDetail | None:
-        film = await self._film_from_cache(film_id)
-        if not film:
-            film = await self._get_film_from_elastic(film_id)
-            if not film:
-                return None
-            await self._put_film_to_cache(film)
-
-        return film
-
+class FilmService(BaseServiceRedis, BaseServiceElastic):
     def _generate_cache_key(self, sort, genre, page_size, page_number):
         key_str = f"films:{sort}:{genre}:{page_size}:{page_number}"
         return hashlib.md5(key_str.encode()).hexdigest()
+
+    async def get_by_id(self, film_id):
+        return await self._get_by_id(film_id, FilmDetail)
 
     async def get_list(self, sort, genre, page_size, page_number):
         cache_key = self._generate_cache_key(sort, genre, page_size, page_number)
@@ -101,7 +91,7 @@ class FilmService:
         logger.debug(f"Searched films {films_list}")
         return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
-    async def _get_film_from_elastic(self, film_id: UUID) -> FilmDetail | None:
+    async def _get_object_from_elastic(self, film_id: UUID) -> FilmDetail | None:
         try:
             doc = await self.elastic.get(index="movies", id=film_id)
             genres = doc["_source"].get("genres", [])
@@ -152,19 +142,6 @@ class FilmService:
         }
         logger.debug("Got film details {film_data}")
         return FilmDetail(**film_data)
-
-    async def _film_from_cache(self, film_id: UUID) -> Film | None:
-        data = await self.redis.get(str(film_id))
-        if not data:
-            return None
-        logger.debug(f"Retrieved film {film_id} from cache")
-        film = Film.parse_raw(data)
-        return film
-
-    async def _put_film_to_cache(self, film: Film):
-        await self.redis.set(
-            str(film.id), film.json(), settings.film_cache_expire_in_seconds
-        )
 
 
 @lru_cache()

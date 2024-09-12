@@ -12,20 +12,17 @@ from fastapi import Depends
 from models.film import Film
 from models.person import Person, PersonFilm
 from redis.asyncio import Redis
+from services.base import BaseServiceElastic, BaseServiceRedis
 
 logger = logging.getLogger(__name__)
 
 
-class PersonService:
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
-        self.redis = redis
-        self.elastic = elastic
-
+class PersonService(BaseServiceRedis, BaseServiceElastic):
     def _generate_cache_key(self, query, page_number, page_size):
         key_str = f"persons:{query}:{page_number}:{page_size}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
-    async def get_person_films(self, person_id: UUID):
+    async def _get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
             index="movies",
             query={
@@ -68,39 +65,8 @@ class PersonService:
             person_films.append(person_film)
         return person_films
 
-    async def get_by_id(self, person_id: UUID) -> Person | None:
-        person = await self._person_from_cache(person_id)
-        if not person:
-            person = await self._get_person_from_elastic(person_id)
-            if not person:
-                return None
-            await self._put_person_to_cache(person)
-        return person
-
-    async def get_list(self):
-        cache_key = "persons_list"
-        cached_data = await self.redis.get(cache_key)
-        if cached_data:
-            return [Person.parse_raw(person) for person in json.loads(cached_data)]
-
-        try:
-            persons_list = await self.elastic.search(
-                index="persons", query={"match_all": {}}
-            )
-        except NotFoundError:
-            return None
-
-        persons = [
-            Person(**get_person["_source"])
-            for get_person in persons_list["hits"]["hits"]
-        ]
-        await self.redis.set(
-            cache_key,
-            json.dumps([person.json() for person in persons]),
-            settings.person_cache_expire_in_seconds,
-        )
-
-        return persons
+    async def get_by_id(self, film_id):
+        return await self._get_by_id(film_id, Person)
 
     async def get_person_film_list(self, person_id):
         try:
@@ -152,7 +118,7 @@ class PersonService:
         except NotFoundError:
             return None
         for get_person in persons_list["hits"]["hits"]:
-            get_person["_source"]["films"] = await self.get_person_films(
+            get_person["_source"]["films"] = await self._get_person_films(
                 get_person["_source"]["id"]
             )
         persons = [
@@ -168,7 +134,7 @@ class PersonService:
 
         return persons
 
-    async def _get_person_from_elastic(self, person_id: UUID) -> Person | None:
+    async def _get_object_from_elastic(self, person_id: UUID) -> Person | None:
         try:
             doc = await self.elastic.get(index="persons", id=person_id)
         except NotFoundError:
@@ -177,7 +143,7 @@ class PersonService:
         answer["id"] = doc["_source"]["id"]
         answer["full_name"] = doc["_source"]["full_name"]
 
-        films = await self.get_person_films(answer["id"])
+        films = await self._get_person_films(answer["id"])
         answer["films"] = films
         logger.debug(f"Retrieved person {answer} from elastic")
         return Person(**answer)
