@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class GenreService(BaseServiceRedis, BaseServiceElastic):
-    async def get_by_id(self, film_id):
-        return await self._get_by_id(film_id, Genre)
+    async def get_by_id(self, genre_id):
+        return await self._get_by_id(genre_id, Genre)
 
     async def get_list(self, page_number, page_size):
         cache_key = f"genres_list:{page_size}:{page_number}"
