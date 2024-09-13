@@ -65,8 +65,8 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
             person_films.append(person_film)
         return person_films
 
-    async def get_by_id(self, film_id):
-        return await self._get_by_id(film_id, Person)
+    async def get_by_id(self, person_id):
+        return await self._get_by_id(person_id, Person)
 
     async def get_person_film_list(self, person_id):
         try:
