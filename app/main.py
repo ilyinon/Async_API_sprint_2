@@ -15,13 +15,10 @@ app = FastAPI(
 )
 
 @app.on_event("startup")
-async def startup(
-    redis: Redis = Depends(init_redis), 
-    elastic: AsyncElasticsearch = Depends(init_elastic)
-):
+async def startup():
     # Initialize Redis and Elasticsearch connections on startup
-    app.state.redis = redis
-    app.state.elastic = elastic
+    app.state.redis = await init_redis()
+    app.state.elastic = await init_elastic()
 
 @app.on_event("shutdown")
 async def shutdown():
