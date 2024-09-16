@@ -1,8 +1,9 @@
 from api.v1 import films, genres, persons
 from core.config import settings
-from db import elastic, redis
+from db.elastic import init_elastic
+from db.redis import init_redis
 from elasticsearch import AsyncElasticsearch
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import ORJSONResponse
 from redis.asyncio import Redis
 
@@ -13,17 +14,20 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
 )
 
-
 @app.on_event("startup")
-async def startup():
-    redis.redis = Redis.from_url(settings.redis_dsn)
-    elastic.es = AsyncElasticsearch(hosts=[settings.elastic_dsn])
-
+async def startup(
+    redis: Redis = Depends(init_redis), 
+    elastic: AsyncElasticsearch = Depends(init_elastic)
+):
+    # Initialize Redis and Elasticsearch connections on startup
+    app.state.redis = redis
+    app.state.elastic = elastic
 
 @app.on_event("shutdown")
 async def shutdown():
-    await redis.redis.close()
-    await elastic.es.close()
+    # Gracefully close connections on shutdown
+    await app.state.redis.close()
+    await app.state.elastic.close()
 
 
 app.include_router(films.router, prefix="/api/v1/films", tags=["films"])

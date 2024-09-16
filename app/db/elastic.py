@@ -1,7 +1,12 @@
 from elasticsearch import AsyncElasticsearch
+from fastapi import Depends
+from core.config import settings
 
-es: AsyncElasticsearch | None = None
+# Initialize Elasticsearch connection
+async def init_elastic() -> AsyncElasticsearch:
+    elastic = AsyncElasticsearch(hosts=[settings.elastic_dsn])
+    return elastic
 
-
-async def get_elastic() -> AsyncElasticsearch:
-    return es
+# Dependency for getting Elasticsearch connection
+async def get_elastic(elastic: AsyncElasticsearch = Depends(init_elastic)) -> AsyncElasticsearch:
+    return elastic

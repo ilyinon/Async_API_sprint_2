@@ -1,58 +1,58 @@
-import json
 import logging
 from functools import lru_cache
 from uuid import UUID
 
+from services.base import BaseService
 from core.config import settings
 from db.elastic import get_elastic
 from db.redis import get_redis
-from elasticsearch import AsyncElasticsearch, NotFoundError
+from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from models.genre import Genre
 from redis.asyncio import Redis
-from services.base import BaseServiceElastic, BaseServiceRedis
+
 
 logger = logging.getLogger(__name__)
 
+class GenreService(BaseService):
+    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
+        super().__init__(redis, elastic)
 
-class GenreService(BaseServiceRedis, BaseServiceElastic):
-    async def get_by_id(self, film_id):
-        return await self._get_by_id(film_id, Genre)
+    def _generate_cache_key(self, page_size, page_number):
+        return f"genres_list:{page_size}:{page_number}"
+
+    async def get_by_id(self, genre_id: UUID) -> Genre | None:
+        cache_key = f"genre:{genre_id}"
+        genre = await self.cache_service.get(cache_key, Genre)
+        
+        if genre is None:
+            genre = await self.search_service.get_by_id("genres", genre_id)
+            if genre:
+                await self.cache_service.set(cache_key, genre, settings.genre_cache_expire_in_seconds)
+        
+        return genre
 
     async def get_list(self, page_number, page_size):
-        cache_key = f"genres_list:{page_size}:{page_number}"
-        cached_data = await self.redis.get(cache_key)
-        offset = (page_number - 1) * page_size
+        cache_key = self._generate_cache_key(page_size, page_number)
+        cached_data = await self.cache_service.get(cache_key, Genre)
+
         if cached_data:
-            return [Genre.parse_raw(genre) for genre in json.loads(cached_data)]
+            return cached_data
 
-        try:
-            genres_list = await self.elastic.search(
-                index="genres", from_=offset, size=page_size, query={"match_all": {}}
-            )
-        except NotFoundError:
-            return None
+        offset = (page_number - 1) * page_size
+        search_body = {
+            "query": {"match_all": {}},
+            "from": offset,
+            "size": page_size,
+        }
 
-        genres = [
-            Genre(**get_genre["_source"]) for get_genre in genres_list["hits"]["hits"]
-        ]
-        await self.redis.set(
-            cache_key,
-            json.dumps([genre.json() for genre in genres]),
-            settings.genre_cache_expire_in_seconds,
-        )
+        genres_list = await self.search_service.search(search_body, "genres")
+        genres = [Genre(**get_genre["_source"]) for get_genre in genres_list] if genres_list else None
+        
+        if genres:
+            await self.cache_service.set(cache_key, genres, settings.genre_cache_expire_in_seconds)
 
         return genres
-
-    async def _get_object_from_elastic(self, genre_id: UUID) -> Genre | None:
-        try:
-            doc = await self.elastic.get(index="genres", id=genre_id)
-        except NotFoundError:
-            return None
-        answer = {}
-        answer["id"] = doc["_source"]["id"]
-        answer["name"] = doc["_source"]["name"]
-        return Genre(**answer)
 
 
 @lru_cache()
