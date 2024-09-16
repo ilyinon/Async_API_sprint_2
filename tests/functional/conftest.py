@@ -8,7 +8,6 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch.helpers import async_bulk
 
 from settings import film_test_settings
-from testdata import es_mapping
 
 
 @pytest_asyncio.fixture(scope='session')
@@ -42,16 +41,15 @@ async def aiohttp_client_session():
 
 @pytest_asyncio.fixture(name='es_write_data')
 def es_write_data(es_client):
-    # 1. Генерируем данные для ES
-    async def inner(data: list[dict]):
+    async def inner(index, mapping, data: list[dict]):
         bulk_query: list[dict] = []
         for row in data:
-            data = {"_index": "movies", "_id": row["id"]}
+            data = {"_index": index, "_id": row["id"]}
             data.update({"_source": row})
             bulk_query.append(data)
-        if await es_client.indices.exists(index=film_test_settings.es_index):
-            await es_client.indices.delete(index=film_test_settings.es_index)
-        await es_client.indices.create(index=film_test_settings.es_index, **es_mapping.MAPPING_MOVIES)
+        if await es_client.indices.exists(index=index):
+            await es_client.indices.delete(index=index)
+        await es_client.indices.create(index=index, **mapping)
 
         updated, errors = await async_bulk(client=es_client, actions=bulk_query)
 
@@ -62,22 +60,25 @@ def es_write_data(es_client):
 
 @pytest_asyncio.fixture(name="make_get_request")
 def make_get_request(aiohttp_client_session):
-    async def inner(url, query_data):
-        # async with aiohttp_client_sesion() as session:
+    async def inner(url, query_data=None):
+        # async with aiohttp_client_session() as session:
         url = film_test_settings.service_url + url
         print(f"***** query data = {query_data}")
-        params = {
-            "query": query_data['search']
-        }
-        headers = {
-            'User-Agent': 'Mozilla'
-        }
-        async with aiohttp_client_session.get(
-            url,
-            params=params,
-            headers=headers
-        ) as response:
-            body = await response.json(loads=json.loads)
-            status = response.status
+        if query_data:
+            params = {
+                "query": query_data['search']
+            }
+            async with aiohttp_client_session.get(
+                url,
+                params=params
+            ) as response:
+                body = await response.json(loads=json.loads)
+                status = response.status
+        else:
+            async with aiohttp_client_session.get(
+                url,
+            ) as response:
+                body = await response.json(loads=json.loads)
+                status = response.status
         return body, status
     return inner

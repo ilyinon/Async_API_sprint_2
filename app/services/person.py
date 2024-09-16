@@ -25,6 +25,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
     async def _get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
             index="movies",
+            size=100,
             query={
                 "bool": {
                     "should": [
@@ -72,6 +73,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
         try:
             film_list = await self.elastic.search(
                 index="movies",
+                size=100,
                 query={
                     "bool": {
                         "should": [
@@ -119,7 +121,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
             return None
         for get_person in persons_list["hits"]["hits"]:
             get_person["_source"]["films"] = await self._get_person_films(
-                get_person["_source"]["id"]
+                get_person["_source"]["id"],
             )
         persons = [
             Person(**get_person["_source"])

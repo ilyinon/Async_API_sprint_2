@@ -15,3 +15,5 @@ class TestSettings(BaseSettings):
 
 
 film_test_settings = TestSettings(es_index="movies_test", es_index_mapping=es_mapping.MAPPING_MOVIES)
+person_test_settings = TestSettings(es_index="persons_test", es_index_mapping=es_mapping.MAPPING_PERSONS)
+genre_test_settings = TestSettings(es_index="genres_test", es_index_mapping=es_mapping.MAPPING_GENRES)

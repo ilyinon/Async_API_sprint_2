@@ -2,6 +2,8 @@ import pytest
 import time
 import uuid
 
+from testdata import es_mapping
+
 
 #  Название теста должно начинаться со слова `test_`
 #  Любой тест с асинхронными вызовами нужно оборачивать декоратором `pytest.mark.asyncio`,
@@ -49,7 +51,7 @@ async def test_search(es_write_data, make_get_request, query_data, expected_answ
         for _ in range(60)
     ]
     # 2. Загружаем данные в ES
-    await es_write_data(es_data)
+    await es_write_data(index="movies", mapping=es_mapping.MAPPING_MOVIES, data=es_data)
 
     # *** Подождем 1 секунду, пока эластик сформирует индекс
     time.sleep(1)
