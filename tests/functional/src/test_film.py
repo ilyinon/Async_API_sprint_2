@@ -1,106 +1,101 @@
-from http import HTTPStatus
-from unittest.mock import AsyncMock
-from uuid import uuid4
-
+import asyncio
 import pytest
-from app.main import app
-from app.models.film import Film, FilmDetail
-from app.services.film import FilmService
-from fastapi.testclient import TestClient
+from testdata import es_mapping, db_data
 
+existing_film_id = db_data.movies_data[0]["id"]
 
-@pytest.fixture
-def mock_film_service():
-    """Mock FilmService for dependency injection."""
-    mock_service = AsyncMock(spec=FilmService)
-    return mock_service
-
-
-@pytest.fixture
-def client(mock_film_service):
-    """Fixture for test client with mock dependencies."""
-    app.dependency_overrides[FilmService] = lambda: mock_film_service
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides = {}
-
-
-@pytest.mark.asyncio
-async def test_films_list(client, mock_film_service):
-    """Test the /films/ endpoint to list films."""
-    # Mock data
-    film_id = uuid4()
-    mock_film_service.get_list.return_value = [
-        Film(id=film_id, title="Test Movie", imdb_rating=7.5)
+@pytest.mark.parametrize(
+    'query_data, expected_answer',
+    [
+        (
+            {'search': 'The Star'},
+            {'status': 200, 'length': 1}
+        ),
+        (
+            {'search': 'Nonexistent Movie'},
+            {'status': 200, 'length': 0}
+        ),
+        (
+            {'search': ' '},
+            {'status': 200, 'length': 0}
+        ),
     ]
-
-    response = client.get("/films/")
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == [
-        {"uuid": str(film_id), "title": "Test Movie", "imdb_rating": 7.5}
-    ]
-
-    mock_film_service.get_list.assert_called_once()
-
-
+)
 @pytest.mark.asyncio
-async def test_search_film(client, mock_film_service):
-    """Test the /films/search endpoint for searching films."""
-    film_id = uuid4()
-    mock_film_service.search_film.return_value = [
-        Film(id=film_id, title="Search Test Movie", imdb_rating=8.0)
+async def test_film_search(
+    es_write_data,
+    make_get_request,
+    query_data,
+    expected_answer
+):
+
+    await es_write_data(index="movies_test", mapping=es_mapping.MAPPING_MOVIES, data=db_data.movies_data)
+
+    await asyncio.sleep(1)
+
+    body, status = await make_get_request("/api/v1/films/search", query_data)
+
+    assert status == expected_answer["status"]
+    assert len(body) == expected_answer["length"]
+
+
+@pytest.mark.parametrize(
+    'film_id, expected_answer',
+    [
+        (
+            existing_film_id,
+            {'status': 200, 'length': 1}
+        ),
+        (
+            'nonexistent-film-id',
+            {'status': 404, 'length': 0}
+        ),
     ]
+)
+@pytest.mark.asyncio
+async def test_film_by_id(
+    es_write_data,
+    make_get_request,
+    film_id,
+    expected_answer
+):
 
-    response = client.get("/films/search", params={"query": "test"})
+    await es_write_data(index="movies_test", mapping=es_mapping.MAPPING_MOVIES, data=db_data.movies_data)
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == [
-        {"uuid": str(film_id), "title": "Search Test Movie", "imdb_rating": 8.0}
+    await asyncio.sleep(1)
+
+    body, status = await make_get_request(f"/api/v1/films/{film_id}")
+
+    assert status == expected_answer["status"]
+    assert len(body) == expected_answer["length"]
+
+
+@pytest.mark.parametrize(
+    'film_id, expected_answer',
+    [
+        (
+            existing_film_id,
+            {'status': 200, 'length': 1}
+        ),
+        (
+            'nonexistent-film-id',
+            {'status': 404, 'length': 0}
+        ),
     ]
-
-    mock_film_service.search_film.assert_called_once_with("test", 50, 1)
-
-
+)
 @pytest.mark.asyncio
-async def test_film_details(client, mock_film_service):
-    """Test the /films/{film_id} endpoint for film details."""
-    film_id = uuid4()
-    mock_film_service.get_by_id.return_value = FilmDetail(
-        id=film_id,
-        title="Film Detail Test",
-        imdb_rating=7.9,
-        description="A great film",
-        genres=[{"id": str(uuid4()), "name": "Drama"}],
-        actors=[{"id": str(uuid4()), "full_name": "John Doe"}],
-        writers=[{"id": str(uuid4()), "full_name": "Jane Doe"}],
-        directors=[{"id": str(uuid4()), "full_name": "Director Name"}],
-    )
+async def test_film_details(
+    es_write_data,
+    make_get_request,
+    film_id,
+    expected_answer
+):
 
-    response = client.get(f"/films/{film_id}")
+    await es_write_data(index="movies_test", mapping=es_mapping.MAPPING_MOVIES, data=db_data.movies_data)
 
-    assert response.status_code == HTTPStatus.OK
-    response_json = response.json()
-    assert response_json["id"] == str(film_id)
-    assert response_json["title"] == "Film Detail Test"
-    assert response_json["imdb_rating"] == 7.9
-    assert response_json["description"] == "A great film"
-    assert response_json["genres"][0]["name"] == "Drama"
+    await asyncio.sleep(1)
 
-    mock_film_service.get_by_id.assert_called_once_with(film_id)
+    body, status = await make_get_request(f"/api/v1/films/{film_id}")
 
-
-@pytest.mark.asyncio
-async def test_film_details_not_found(client, mock_film_service):
-    """Test the /films/{film_id} endpoint when film is not found."""
-    film_id = uuid4()
-    mock_film_service.get_by_id.return_value = None
-
-    response = client.get(f"/films/{film_id}")
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {
-        "detail": f"film with id {film_id} not found"
-    }
-
-    mock_film_service.get_by_id.assert_called_once_with(film_id)
+    assert status == expected_answer["status"]
+    assert len(body) == expected_answer["length"]
