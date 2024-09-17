@@ -60,14 +60,8 @@ def generate_movie(id: str):
     ]
 
 
-# print(generate_movie(str(uuid.uuid4())))
-
-
 def generate_movies(count: int):
     tmp_list = []
     for _ in range(count):
         tmp_list.append(generate_movie(str(uuid.uuid4())))
     return tmp_list
-
-
-print(generate_movies(60))
