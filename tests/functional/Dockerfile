@@ -6,4 +6,13 @@ ENV PYTHONUNBUFFERED 1
 
 WORKDIR /opt
 
+COPY requirements.txt /opt/requirements.txt
+RUN  pip install --upgrade pip \
+     && pip install --no-cache-dir -r /opt/requirements.txt
+
 COPY . /opt/tests/functional
+
+ENTRYPOINT find /opt && \
+    # python3 tests/functional/utils/wait_for_es.py && \
+    # python3 tests/functional/utils/wait_for_redis.py && \
+    python3 -m pytest tests/ -vvv --disable-warnings

@@ -13,6 +13,11 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - ELASTIC_HOST=${ELASTIC_HOST}
       - ELASTIC_PORT=${ELASTIC_PORT}
+    healthcheck:
+      test: bash -c "exec 6<> /dev/tcp/localhost/8000"
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
       elastic:
         condition: service_healthy

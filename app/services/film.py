@@ -41,7 +41,7 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
 
         if genre:
             genre_response = await self.elastic.search(
-                index="genres", query={"multi_match": {"query": genre}}
+                index=settings.genres_index, query={"multi_match": {"query": genre}}
             )
             genre_names = " ".join(
                 [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
@@ -56,7 +56,7 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
 
         try:
             films_list = await self.elastic.search(
-                index="movies",
+                index=settings.movies_index,
                 body={
                     "query": query,
                     "sort": [{"imdb_rating": {"order": sort_type}}],
@@ -81,7 +81,7 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
         offset = (page_number - 1) * page_size
         try:
             films_list = await self.elastic.search(
-                index="movies",
+                index=settings.movies_index,
                 from_=offset,
                 size=page_size,
                 query={"multi_match": {"query": query}},
@@ -93,13 +93,13 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
 
     async def _get_object_from_elastic(self, film_id: UUID) -> FilmDetail | None:
         try:
-            doc = await self.elastic.get(index="movies", id=film_id)
+            doc = await self.elastic.get(index=settings.movies_index, id=film_id)
             genres = doc["_source"].get("genres", [])
             logger.debug(f"genres list: {genres}")
             genres_list = []
             for genre in genres:
                 response = await self.elastic.search(
-                    index="genres", query={"multi_match": {"query": genre}}
+                    index=settings.genres_index, query={"multi_match": {"query": genre}}
                 )
 
                 genres_list.append(response["hits"]["hits"][0]["_source"])

@@ -28,6 +28,10 @@ class EtlSettings(BaseSettings):
     genre_cache_expire_in_seconds: int
     person_cache_expire_in_seconds: int
 
+    movies_index: str
+    genres_index: str
+    persons_index: str
+
     @property
     def elastic_dsn(self):
         return f"http://{self.elastic_host}:{self.elastic_port}"
