@@ -37,7 +37,26 @@ class GenreService(BaseService):
         cached_data = await self.cache_service.get(cache_key, Genre)
 
         if cached_data:
-            return cached_data
+            return [Genre.parse_raw(genre) for genre in json.loads(cached_data)]
+
+        try:
+            genres_list = await self.search_service.search(
+                index=settings.genres_index,
+                from_=offset,
+                size=page_size,
+                query={"match_all": {}},
+            )
+        except NotFoundError:
+            return None
+
+        genres = [
+            Genre(**get_genre["_source"]) for get_genre in genres_list["hits"]["hits"]
+        ]
+        await self.cache_service.set(
+            cache_key,
+            json.dumps([genre.json() for genre in genres]),
+            settings.genre_cache_expire_in_seconds,
+        )
 
         offset = (page_number - 1) * page_size
         search_body = {
@@ -51,8 +70,19 @@ class GenreService(BaseService):
         
         if genres:
             await self.cache_service.set(cache_key, genres, settings.genre_cache_expire_in_seconds)
-
+        
         return genres
+
+    async def _get_object_from_elastic(self, genre_id: UUID) -> Genre | None:
+        try:
+            doc = await self.search_service.get(index=settings.genres_index, id=genre_id)
+        except NotFoundError:
+            return None
+        answer = {}
+        answer["id"] = doc["_source"]["id"]
+        answer["name"] = doc["_source"]["name"]
+        return Genre(**answer)
+
 
 
 @lru_cache()

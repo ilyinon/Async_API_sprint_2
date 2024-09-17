@@ -25,31 +25,33 @@ class PersonService(BaseService):
         return hashlib.md5(key_str.encode()).hexdigest()
 
     async def _get_person_films(self, person_id: UUID):
-        search_body = {
-            "bool": {
-                "should": [
-                    {
-                        "nested": {
-                            "path": "directors",
-                            "query": {"term": {"directors.id": person_id}},
-                        }
-                    },
-                    {
-                        "nested": {
-                            "path": "actors",
-                            "query": {"term": {"actors.id": person_id}},
-                        }
-                    },
-                    {
-                        "nested": {
-                            "path": "writers",
-                            "query": {"term": {"writers.id": person_id}},
-                        }
-                    },
-                ]
-            }
-        }
-        film_list = await self.search_service.search(search_body, "movies")
+        film_list = await self.search_service.search(
+            index=settings.movies_index,
+            query={
+                "bool": {
+                    "should": [
+                        {
+                            "nested": {
+                                "path": "directors",
+                                "query": {"term": {"directors.id": person_id}},
+                            },
+                        },
+                        {
+                            "nested": {
+                                "path": "actors",
+                                "query": {"term": {"actors.id": person_id}},
+                            },
+                        },
+                        {
+                            "nested": {
+                                "path": "writers",
+                                "query": {"term": {"writers.id": person_id}},
+                            }
+                        },
+                    ]
+                }
+            },
+        )
         person_films = []
         for film in film_list:
             person_film = PersonFilm(id=film.get("id"), roles=[])
@@ -101,7 +103,33 @@ class PersonService(BaseService):
             }
         }
         try:
-            film_list = await self.search_service.search(search_body, "movies")
+            film_list = await self.search_service.search(
+                index=settings.movies_index,
+                query={
+                    "bool": {
+                        "should": [
+                            {
+                                "nested": {
+                                    "path": "directors",
+                                    "query": {"term": {"directors.id": person_id}},
+                                },
+                            },
+                            {
+                                "nested": {
+                                    "path": "actors",
+                                    "query": {"term": {"actors.id": person_id}},
+                                },
+                            },
+                            {
+                                "nested": {
+                                    "path": "writers",
+                                    "query": {"term": {"writers.id": person_id}},
+                                }
+                            },
+                        ]
+                    }
+                },
+            )
         except NotFoundError:
             return None
         return [Film(**film) for film in film_list]
@@ -114,17 +142,23 @@ class PersonService(BaseService):
             return cached_data
 
         offset = (page_number - 1) * page_size
-        search_body = {
-            "query": {"match": {"full_name": query}},
-            "from": offset,
-            "size": page_size,
-        }
-
-        persons_list = await self.search_service.search(search_body, "persons")
-        for person in persons_list:
-            person["films"] = await self._get_person_films(person["id"])
-
-        persons = [Person(**person) for person in persons_list]
+        try:
+            persons_list = await self.search_service.search(
+                index=settings.persons_index,
+                from_=offset,
+                size=page_size,
+                query={"match": {"full_name": query}},
+            )
+        except NotFoundError:
+            return None
+        for get_person in persons_list["hits"]["hits"]:
+            get_person["_source"]["films"] = await self._get_person_films(
+                get_person["_source"]["id"]
+            )
+        persons = [
+            Person(**get_person["_source"])
+            for get_person in persons_list["hits"]["hits"]
+        ]
         logger.debug(f"Search person {persons}")
         await self.cache_service.set(
             cache_key, persons, settings.person_cache_expire_in_seconds

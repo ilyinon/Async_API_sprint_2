@@ -1,32 +1,40 @@
 version: '3'
 
 services:
-
-  elastic:
-    ports:
-      - "9200:9200"
-
-  redis:
-    ports:
-      - "6379:6379"
-
   test:
     build: tests/functional
     env_file:
       - ./.env
+    depends_on:
+      elastic:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_healthy
+        restart: true
+      app_test:
+        condition: service_healthy
+        restart: true
+
+  app_test:
+    build: app
+    env_file:
+      - ./.env_test
+    restart: unless-stopped
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - ELASTIC_HOST=${ELASTIC_HOST}
       - ELASTIC_PORT=${ELASTIC_PORT}
-    entrypoint: >
-      sh -c "
-      pwd
-      && pip install -r tests/functional/requirements.txt
-      && python3 tests/functional/utils/wait_for_es.py
-      && python3 tests/functional/utils/wait_for_redis.py
-      && pytest tests/functional/src"
+    command: uvicorn main:app --host 0.0.0.0 --port 7000
+    ports:
+      - "7001:7000"
+    healthcheck:
+      test: bash -c "exec 6<> /dev/tcp/localhost/7000"
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
       elastic:
         condition: service_healthy

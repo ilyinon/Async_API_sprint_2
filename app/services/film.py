@@ -46,9 +46,17 @@ class FilmService(BaseService):
         sort_type = "asc" if sort[0] != "-" else "desc"
 
         if genre:
-            genre_response = await self.search_service.search({"multi_match": {"query": genre}}, "genres")
-            genre_names = " ".join([genre["_source"]["name"] for genre in genre_response])
-            query = {"bool": {"must": [{"term": {"genres": genre_names}}]}} if genre_names else query
+            genre_response = await self.search_service.search(
+                index=settings.genres_index, query={"multi_match": {"query": genre}}
+            )
+            genre_names = " ".join(
+                [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
+            )
+
+            logger.debug(f"Genre list {genre_names}")
+
+            if genre_names:
+                query = {"bool": {"must": [{"term": {"genres": genre_names}}]}}
 
         offset = (page_number - 1) * page_size
         search_body = {
@@ -58,20 +66,91 @@ class FilmService(BaseService):
             "size": page_size,
         }
 
-        films_list = await self.search_service.search(search_body, "movies")
-        films = [Film(**get_film["_source"]) for get_film in films_list] if films_list else None
-        
-        if films:
-            await self.cache_service.set(cache_key, films, settings.film_cache_expire_in_seconds)
+        try:
+            films_list = await self.search_service.search(
+                index=settings.movies_index,
+                body={
+                    "query": query,
+                    "sort": [{"imdb_rating": {"order": sort_type}}],
+                    "from": offset,
+                    "size": page_size,
+                },
+            )
+            logger.debug(f"Retrieved films {films_list}")
+        except NotFoundError:
+            return None
+
+        films = [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+        await self.cache_service.set(
+            cache_key,
+            json.dumps([film.json() for film in films]),
+            settings.film_cache_expire_in_seconds,
+        )
 
         return films
 
     async def search_film(self, query, page_size, page_number):
         offset = (page_number - 1) * page_size
-        search_body = {
-            "query": {"multi_match": {"query": query}},
-            "from": offset,
-            "size": page_size,
+        try:
+            films_list = await self.search_service.search(
+                index=settings.movies_index,
+                from_=offset,
+                size=page_size,
+                query={"multi_match": {"query": query}},
+            )
+        except NotFoundError:
+            return None
+        logger.debug(f"Searched films {films_list}")
+        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+
+    async def _get_object_from_elastic(self, film_id: UUID) -> FilmDetail | None:
+        try:
+            doc = await self.search_service.get(index=settings.movies_index, id=film_id)
+            genres = doc["_source"].get("genres", [])
+            logger.debug(f"genres list: {genres}")
+            genres_list = []
+            for genre in genres:
+                response = await self.search_service.search(
+                    index=settings.genres_index, query={"multi_match": {"query": genre}}
+                )
+
+                genres_list.append(response["hits"]["hits"][0]["_source"])
+            actors = doc["_source"].get("actors", [])
+            if isinstance(actors, str):
+                actors = []
+
+            writers = doc["_source"].get("writers", [])
+            if isinstance(writers, str):
+                writers = []
+
+            directors = doc["_source"].get("directors", [])
+            if isinstance(directors, str):
+                directors = []
+        except NotFoundError:
+            logger.error(f"Film with ID {film_id} not found in Elasticsearch")
+            return None
+
+        film_data = {
+            "id": doc["_source"].get("id"),
+            "title": doc["_source"].get("title"),
+            "imdb_rating": doc["_source"].get("imdb_rating"),
+            "description": doc["_source"].get("description", ""),
+            "genres": genres_list,
+            "actors": [
+                {"id": actor.get("id"), "full_name": actor.get("name")}
+                for actor in actors
+                if isinstance(actor, dict)
+            ],
+            "writers": [
+                {"id": writer.get("id"), "full_name": writer.get("name")}
+                for writer in writers
+                if isinstance(writer, dict)
+            ],
+            "directors": [
+                {"id": director.get("id"), "full_name": director.get("name")}
+                for director in directors
+                if isinstance(director, dict)
+            ],
         }
         films_list = await self.search_service.search(search_body, "movies")
         return [Film(**get_film["_source"]) for get_film in films_list] if films_list else None
