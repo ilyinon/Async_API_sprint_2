@@ -1,4 +1,0 @@
-services:
-  elastic:
-    ports:
-      - "9200:9200"

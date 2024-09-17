@@ -24,7 +24,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
 
     async def _get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
-            index="movies",
+            index=settings.movies_index,
             query={
                 "bool": {
                     "should": [
@@ -71,7 +71,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
     async def get_person_film_list(self, person_id):
         try:
             film_list = await self.elastic.search(
-                index="movies",
+                index=settings.movies_index,
                 query={
                     "bool": {
                         "should": [
@@ -110,7 +110,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
         offset = (page_number - 1) * page_size
         try:
             persons_list = await self.elastic.search(
-                index="persons",
+                index=settings.persons_index,
                 from_=offset,
                 size=page_size,
                 query={"match": {"full_name": query}},
@@ -136,7 +136,7 @@ class PersonService(BaseServiceRedis, BaseServiceElastic):
 
     async def _get_object_from_elastic(self, person_id: UUID) -> Person | None:
         try:
-            doc = await self.elastic.get(index="persons", id=person_id)
+            doc = await self.elastic.get(index=settings.persons_index, id=person_id)
         except NotFoundError:
             return None
         answer = {}

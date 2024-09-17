@@ -28,7 +28,10 @@ class GenreService(BaseServiceRedis, BaseServiceElastic):
 
         try:
             genres_list = await self.elastic.search(
-                index="genres", from_=offset, size=page_size, query={"match_all": {}}
+                index=settings.genres_index,
+                from_=offset,
+                size=page_size,
+                query={"match_all": {}},
             )
         except NotFoundError:
             return None
@@ -46,7 +49,7 @@ class GenreService(BaseServiceRedis, BaseServiceElastic):
 
     async def _get_object_from_elastic(self, genre_id: UUID) -> Genre | None:
         try:
-            doc = await self.elastic.get(index="genres", id=genre_id)
+            doc = await self.elastic.get(index=settings.genres_index, id=genre_id)
         except NotFoundError:
             return None
         answer = {}
