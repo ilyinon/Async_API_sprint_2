@@ -10,8 +10,6 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-    ports:
-      - 9200:9200
     healthcheck:
       test: curl -s http://${ELASTIC_HOST}:${ELASTIC_PORT} >/dev/null || exit 1
       interval: 5s

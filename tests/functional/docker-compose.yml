@@ -28,8 +28,6 @@ services:
       - ELASTIC_HOST=${ELASTIC_HOST}
       - ELASTIC_PORT=${ELASTIC_PORT}
     command: uvicorn main:app --host 0.0.0.0 --port 7000
-    ports:
-      - "7001:7000"
     healthcheck:
       test: bash -c "exec 6<> /dev/tcp/localhost/7000"
       interval: 5s

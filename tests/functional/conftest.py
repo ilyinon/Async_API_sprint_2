@@ -44,21 +44,21 @@ def movies_index_create(es_client):
     es_client.indices.create(index=TEST_MOVIES, ignore=400, body=MOVIES_INDEX)
     yield es_client
 
-    # es_client.indices.delete(index=TEST_MOVIES)
+    es_client.indices.delete(index=TEST_MOVIES)
 
 
 @pytest.fixture
 def genres_index_create(es_client):
     es_client.indices.create(index=TEST_GENRES, ignore=400, body=GENRE_INDEX)
     yield es_client
-    # es_client.indices.delete(index=TEST_GENRES)
+    es_client.indices.delete(index=TEST_GENRES)
 
 
 @pytest.fixture
 def persons_index_create(es_client):
     es_client.indices.create(index=TEST_PERSONS, ignore=400, body=PERSON_INDEX)
     yield es_client
-    # es_client.indices.delete(index=TEST_PERSONS)
+    es_client.indices.delete(index=TEST_PERSONS)
 
 
 @pytest.fixture

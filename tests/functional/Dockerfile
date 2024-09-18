@@ -12,7 +12,4 @@ RUN  pip install --upgrade pip \
 
 COPY . /opt/tests/functional
 
-ENTRYPOINT find /opt && \
-    # python3 tests/functional/utils/wait_for_es.py && \
-    # python3 tests/functional/utils/wait_for_redis.py && \
-    python3 -m pytest tests/ -vvv --disable-warnings
+ENTRYPOINT python3 -m pytest tests/ -vvv --disable-warnings

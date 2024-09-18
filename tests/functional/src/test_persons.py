@@ -9,7 +9,7 @@ from tests.functional.testdata.persons import PERSONS_DATA
 
 @pytest.mark.asyncio
 async def test_persons_search(
-    session, es_client, persons_index_create, persons_data_load
+    session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
     url_template = (
         "{service_url}/api/v1/persons/search?page_size=50&page_number=1&query=James"
@@ -23,7 +23,7 @@ async def test_persons_search(
 
 @pytest.mark.asyncio
 async def test_get_person_by_id(
-    session, es_client, persons_index_create, persons_data_load
+    session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
     url_template = "{service_url}/api/v1/persons/{id}/"
     id = PERSONS_DATA[random.randrange(len(PERSONS_DATA))]["id"]
@@ -34,7 +34,7 @@ async def test_get_person_by_id(
 
 @pytest.mark.asyncio
 async def test_get_person_films_by_id(
-    session, es_client, persons_index_create, persons_data_load
+    session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
     url_template = "{service_url}/api/v1/persons/{id}/film"
     id = PERSONS_DATA[random.randrange(len(PERSONS_DATA))]["id"]
