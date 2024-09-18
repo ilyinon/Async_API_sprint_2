@@ -1,4 +1,4 @@
-from elasticsearch import Elasticsearch
+from elasticsearch import ConnectionError, Elasticsearch
 from settings import settings
 from utils.backoff import backoff
 from utils.logger import logger
@@ -8,10 +8,9 @@ from utils.logger import logger
 def wait_for_es():
     es_client = Elasticsearch(hosts=settings.elastic_dsn)
     ping = es_client.ping()
-    logger.info(ping)
-    if ping:
-        return ping
-    raise Exception
+    if not ping:
+        raise ConnectionError
+    logger.info(f"elastic ping: {ping}")
 
 
 if __name__ == "__main__":

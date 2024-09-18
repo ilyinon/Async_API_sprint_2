@@ -1,7 +1,10 @@
 import time
 from functools import wraps
+from socket import gaierror
 
 import elasticsearch
+import redis
+import urllib3
 from utils.logger import logger
 
 
@@ -25,9 +28,15 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=30):
             sleep_time = start_sleep_time
             while sleep_time < border_sleep_time:
                 try:
+                    logger.info(f"sleep time: {sleep_time}")
                     return func(*args, **kwargs)
 
-                except (elasticsearch.ConnectionError) as error:
+                except (
+                    elasticsearch.ConnectionError,
+                    urllib3.exceptions.NameResolutionError,
+                    redis.ConnectionError,
+                    gaierror,
+                ) as error:
                     logger.error(error)
 
                 time.sleep(sleep_time)
