@@ -1,0 +1,257 @@
+openapi: 3.0.0
+info:
+  title: Film Service API
+  description: API для работы с фильмами, жанрами и персонажами.
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8000
+    description: Local server
+paths:
+  /films/:
+    get:
+      summary: Список фильмов
+      description: Получить список фильмов с возможностью сортировки и фильтрации по жанру.
+      parameters:
+        - name: sort
+          in: query
+          description: Сортировка по рейтингу IMDb
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [imdb_rating, -imdb_rating]
+        - name: genre
+          in: query
+          description: UUID жанра для фильтрации
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: page_size
+          in: query
+          description: Количество фильмов на странице
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+        - name: page_number
+          in: query
+          description: Номер страницы
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+      responses:
+        "200":
+          description: Успешный ответ с массивом фильмов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FilmResponse'
+
+  /genres/:
+    get:
+      summary: Список жанров
+      description: Получить список жанров.
+      parameters:
+        - name: page_size
+          in: query
+          description: Количество жанров на страницу
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+        - name: page_number
+          in: query
+          description: Номер страницы
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+      responses:
+        "200":
+          description: Успешный ответ с массивом жанров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Genre'
+
+  /genres/{genre_id}:
+    get:
+      summary: Страница жанра
+      description: Получить данные по конкретному жанру по UUID.
+      parameters:
+        - name: genre_id
+          in: path
+          description: UUID жанра
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Успешный ответ с информацией о жанре
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Genre'
+        "404":
+          description: Жанр не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /persons/search:
+    get:
+      summary: Поиск по персонажам
+      description: Получить список персонажей, отвечающих условиям запроса.
+      parameters:
+        - name: query
+          in: query
+          description: Поисковый запрос
+          required: true
+          schema:
+            type: string
+        - name: page_size
+          in: query
+          description: Количество персонажей на страницу
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+        - name: page_number
+          in: query
+          description: Номер страницы
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+      responses:
+        "200":
+          description: Успешный ответ с массивом персонажей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Person'
+
+  /persons/{person_id}/film:
+    get:
+      summary: Фильмы по персонажам
+      description: Получить список фильмов, в которых участвовала персона.
+      parameters:
+        - name: person_id
+          in: path
+          description: UUID персонажа
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Успешный ответ с массивом фильмов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Film'
+
+  /persons/{person_id}:
+    get:
+      summary: Страница персонажа
+      description: Данные по конкретному персонажу.
+      parameters:
+        - name: person_id
+          in: path
+          description: UUID персонажа
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Успешный ответ с информацией о персонаже
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        "404":
+          description: Персонаж не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    FilmResponse:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        imdb_rating:
+          type: number
+          nullable: true
+    Genre:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+    PersonFilm:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+    Film:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        imdb_rating:
+          type: number
+          nullable: true
+    Person:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        films:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonFilm'
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string

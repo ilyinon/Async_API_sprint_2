@@ -1,17 +1,18 @@
-import sys
-import time
-
-from elasticsearch import Elasticsearch
-
-from tests.functional.settings import settings
-
-sys.path.append("/opt/tests")
+from elasticsearch import ConnectionError, Elasticsearch
+from settings import settings
+from utils.backoff import backoff
+from utils.logger import logger
 
 
-# TODO: @backoff()
-if __name__ == "__main__":
+@backoff()
+def wait_for_es():
     es_client = Elasticsearch(hosts=settings.elastic_dsn)
-    while True:
-        if es_client.ping():
-            break
-        time.sleep(1)
+    ping = es_client.ping()
+    if not ping:
+        raise ConnectionError
+    logger.info(f"elastic ping: {ping}")
+
+
+if __name__ == "__main__":
+
+    wait_for_es()
