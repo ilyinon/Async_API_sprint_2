@@ -1,6 +1,6 @@
-aiohttp
+aiohttp==3.10.5
 redis==5.0.8
 elasticsearch[async]==7.9.1
 pydantic-settings==2.4.0
 pytest==7.4.3
-pytest-asyncio
+pytest-asyncio==0.23.8
