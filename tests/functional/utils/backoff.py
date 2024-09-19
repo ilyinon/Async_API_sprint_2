@@ -5,7 +5,7 @@ from socket import gaierror
 import elasticsearch
 import redis
 import urllib3
-from utils.logger import logger
+from functional.utils.logger import logger
 
 
 def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=30):
