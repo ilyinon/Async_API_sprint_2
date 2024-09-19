@@ -36,16 +36,24 @@ class RedisCacheEngine(AsyncCacheEngine):
         cached_object = await self.redis.get(key)
         if not cached_object:
             return None
-        logger.info(f"Retrieved {cached_object} from cache")
+
+        logger.info(f"Retrieved {key} from cache")
+
+        parsed_data = json.loads(cached_object)
+        if isinstance(parsed_data, list):
+            return [Object.parse_raw(json.dumps(item)) for item in parsed_data]
+
         return Object.parse_raw(cached_object)
 
     async def put_to_cache(self, key: str, object: Any, expiration: int) -> None:
         if isinstance(object, list):
-            logger.info(f"Put list of {len(object)} items to cache with key {key}")
             serialized_object = json.dumps([item.json() for item in object])
+        elif isinstance(object, str):
+            serialized_object = object
         else:
-            logger.info(f"Put {object} to cache with key {key}")
             serialized_object = object.json()
+
+        logger.info(f"Put to cache with key {key}")
 
         await self.redis.set(key, serialized_object, expiration)
 
@@ -71,7 +79,9 @@ class BaseCache:
         key = self.cache_engine._generate_cache_key(*args)
         return await self.cache_engine.get_from_cache(key, Object)
 
-    async def put_by_key(self, object: Any, expiration: int, *args: Union[str, int]) -> None:
+    async def put_by_key(
+        self, object: Any, expiration: int, *args: Union[str, int]
+    ) -> None:
         """Store object in cache using a flexible key."""
         key = self.cache_engine._generate_cache_key(*args)
         await self.cache_engine.put_to_cache(key, object, expiration)

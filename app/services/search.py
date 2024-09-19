@@ -6,6 +6,7 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 
 logger = logging.getLogger(__name__)
 
+
 class AsyncSearchEngine(ABC):
 
     @abstractmethod
@@ -17,7 +18,9 @@ class AsyncSearchEngine(ABC):
         pass
 
     @abstractmethod
-    async def search(self, index: str, query: dict, from_: int, size: int) -> list[Any]:
+    async def search(
+        self, index: str, query: dict, from_: int, size: int, sort: list[dict] = None
+    ) -> list[Any]:
         pass
 
 
@@ -40,13 +43,22 @@ class ElasticAsyncSearchEngine(AsyncSearchEngine):
                 docs.append(doc)
         return docs
 
-    async def search(self, index: str, query: dict, from_: int, size: int) -> list[Any]:
+    async def search(
+        self,
+        index: str,
+        query: dict,
+        from_: int = None,
+        size: int = None,
+        sort: list[dict] = None,
+    ) -> list[Any]:
         try:
-            results = await self.elastic.search(index=index, from_=from_, size=size, query=query)
+            results = await self.elastic.search(
+                index=index, from_=from_, size=size, query=query, sort=sort
+            )
             return [hit["_source"] for hit in results["hits"]["hits"]]
         except NotFoundError:
             return []
-        
+
 
 class BaseSearch:
     def __init__(self, search_engine: AsyncSearchEngine):
@@ -60,6 +72,13 @@ class BaseSearch:
         objs = await self.search_engine.get_by_ids(index, obj_ids)
         return objs
 
-    async def search(self, index: str, query: str, from_: int, size: int) -> list[Any]:
-        results = await self.search_engine.search(index, query, from_, size)
+    async def search(
+        self,
+        index: str,
+        query: str,
+        from_: int = None,
+        size: int = None,
+        sort: list[dict] = None,
+    ) -> list[Any]:
+        results = await self.search_engine.search(index, query, from_, size, sort)
         return results

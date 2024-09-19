@@ -10,15 +10,13 @@ from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from models.genre import Genre
 from redis.asyncio import Redis
-
-from services.base import BaseServiceRedis
 from services.cache import BaseCache, RedisCacheEngine
 from services.search import BaseSearch, ElasticAsyncSearchEngine
 
 logger = logging.getLogger(__name__)
 
 
-class GenreService(BaseServiceRedis):
+class GenreService:
     def __init__(self, cache_engine: BaseCache, search_engine: BaseSearch):
         self.search_engine = search_engine
         self.cache_engine = cache_engine
@@ -43,7 +41,6 @@ class GenreService(BaseServiceRedis):
 
     async def get_list(self, page_number: int, page_size: int) -> list[Genre] | None:
         cache_key_args = ("genres_list", page_size, page_number)
-        
         cached_data = await self.cache_engine.get_by_key(*cache_key_args, Object=Genre)
 
         if cached_data:
