@@ -5,6 +5,7 @@ import aiohttp
 import pytest
 import pytest_asyncio
 from elasticsearch import Elasticsearch
+from redis.asyncio import Redis
 
 from tests.functional.settings import settings
 from tests.functional.testdata.elastic import GENRE_INDEX, MOVIES_INDEX, PERSON_INDEX
@@ -37,6 +38,14 @@ def es_client():
 
     yield es_client
     es_client.close()
+
+
+@pytest.fixture(scope="session")
+def redis_client():
+    redis_client = Redis.from_url(settings.redis_dsn)
+
+    yield redis_client
+    redis_client.close()
 
 
 @pytest.fixture
