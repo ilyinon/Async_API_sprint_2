@@ -1,7 +1,7 @@
 from elasticsearch import ConnectionError, Elasticsearch
-from settings import settings
-from utils.backoff import backoff
-from utils.logger import logger
+from functional.settings import settings
+from functional.utils.backoff import backoff
+from functional.utils.logger import logger
 
 
 @backoff()
