@@ -44,7 +44,7 @@ class GenreService:
         cached_data = await self.cache_engine.get_by_key(*cache_key_args, Object=Genre)
 
         if cached_data:
-            return cached_data
+            return [Genre.parse_raw(genre) for genre in json.loads(cached_data)]
 
         offset = (page_number - 1) * page_size
 

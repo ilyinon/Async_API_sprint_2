@@ -51,19 +51,35 @@ class PersonService:
                 }
             },
         )
+
+        # Check if film_list is a dict and has 'hits'
+        if isinstance(film_list, dict) and "hits" in film_list:
+            film_hits = film_list["hits"]["hits"]
+        elif isinstance(film_list, list):
+            film_hits = film_list  # Directly use if it's a list
+        else:
+            return []  # Return empty if the structure is unexpected
+
         person_films = []
-        for film in film_list["hits"]["hits"]:
-            person_film = PersonFilm(id=film.get("_source").get("id"), roles=[])
-            for director in film.get("_source").get("directors"):
-                if director["id"] == person_id and "director" not in person_film.roles:
-                    person_film.roles.append("director")
-            for actor in film.get("_source").get("actors"):
-                if actor["id"] == person_id and "actor" not in person_film.roles:
-                    person_film.roles.append("actor")
-            for writer in film.get("_source").get("writers"):
-                if writer["id"] == person_id and "writer" not in person_film.roles:
-                    person_film.roles.append("writer")
+        for film in film_hits:
+            # Safely access '_source' with a fallback to an empty dict
+            source = film.get("_source", {})
+            
+            # Ensure 'id' and roles lists are present
+            film_id = source.get("id")
+            if film_id is None:
+                continue  # Skip if no film ID
+
+            person_film = PersonFilm(id=film_id, roles=[])
+
+            # Process roles with default to empty list
+            for role_type in ['directors', 'actors', 'writers']:
+                for person in source.get(role_type, []):
+                    if person["id"] == person_id and role_type[:-1] not in person_film.roles:
+                        person_film.roles.append(role_type[:-1])  # Add role without 's'
+
             person_films.append(person_film)
+
         return person_films
 
     async def get_by_id(self, person_id: UUID) -> Person | None:
@@ -76,8 +92,12 @@ class PersonService:
 
             if not person_data:
                 return None
-            
-            person_data.setdefault("films", [])
+
+            films = await self._get_person_films(person_id)
+
+            person_data["films"] = (
+                [PersonFilm(**film) for film in films] if films else []
+            )
 
             person = Person(**person_data)
 
@@ -174,7 +194,14 @@ class PersonService:
                 logger.error("Unexpected format for 'hits': expected a list.")
                 return []
         elif isinstance(persons_list, list):
-            persons = [Person(**person) for person in persons_list]
+            persons = [
+                Person(
+                    id=person["id"],
+                    full_name=person["full_name"],
+                    films=person.get("films", []),
+                )
+                for person in persons_list
+            ]
             return persons
 
         return []

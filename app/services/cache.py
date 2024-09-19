@@ -39,11 +39,15 @@ class RedisCacheEngine(AsyncCacheEngine):
 
         logger.info(f"Retrieved {key} from cache")
 
+        if isinstance(cached_object, bytes):
+            cached_object = cached_object.decode('utf-8')
+
         parsed_data = json.loads(cached_object)
         if isinstance(parsed_data, list):
-            return [Object.parse_raw(json.dumps(item)) for item in parsed_data]
+            return json.dumps(parsed_data)
 
         return Object.parse_raw(cached_object)
+
 
     async def put_to_cache(self, key: str, object: Any, expiration: int) -> None:
         if isinstance(object, list):

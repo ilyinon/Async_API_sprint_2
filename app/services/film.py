@@ -1,7 +1,7 @@
 import json
 import logging
 from functools import lru_cache
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from core.config import settings
 from db.elastic import get_elastic
@@ -22,44 +22,56 @@ class FilmService:
         self.cache_engine = cache_engine
 
     async def get_by_id(self, film_id: UUID) -> FilmDetail | None:
-        
-        film = await self.cache_engine.get_by_id('film', film_id, FilmDetail)
+
+        film = await self.cache_engine.get_by_id("film", film_id, FilmDetail)
         try:
             film_data = await self.search_engine.get_by_id(
-                    settings.movies_index, film_id
-                )
+                settings.movies_index, film_id
+            )
 
             if not film_data:
                 return None
-            
+
         except NotFoundError:
             return None
 
         except Exception as e:
             logger.error(f"Error retrieving film by id {film_id}: {e}")
             return None
-        
-        if 'genres' in film_data:
-            film_data['genres'] = [{'name': genre} if isinstance(genre, str) else genre for genre in film_data['genres']]
 
-        if 'actors' in film_data:
-            film_data['actors'] = [
-                {'id': actor['id'], 'full_name': actor.get('name', '')} for actor in film_data['actors']
+        if "genres" in film_data:
+            film_data["genres"] = [
+                (
+                    {"id": genre["id"], "name": genre["name"]}
+                    if isinstance(genre, dict)
+                    else {"id": str(uuid4()), "name": genre}
+                )
+                for genre in film_data["genres"]
             ]
 
-        if 'writers' in film_data:
-            film_data['writers'] = [
-                {'id': writer['id'], 'full_name': writer.get('name', '')} for writer in film_data['writers']
+        if "actors" in film_data:
+            film_data["actors"] = [
+                {"id": actor.get("id", None), "full_name": actor.get("name", "")}
+                for actor in film_data["actors"]
             ]
 
-        if 'directors' in film_data:
-            film_data['directors'] = [
-                {'id': director['id'], 'full_name': director.get('name', '')} for director in film_data['directors']
+        if "writers" in film_data:
+            film_data["writers"] = [
+                {"id": writer.get("id", None), "full_name": writer.get("name", "")}
+                for writer in film_data["writers"]
+            ]
+
+        if "directors" in film_data:
+            film_data["directors"] = [
+                {"id": director.get("id", None), "full_name": director.get("name", "")}
+                for director in film_data["directors"]
             ]
 
         film = FilmDetail(**film_data)
 
-        await self.cache_engine.put_by_id('film', film, settings.film_cache_expire_in_seconds)
+        await self.cache_engine.put_by_id(
+            "film", film, settings.film_cache_expire_in_seconds
+        )
 
         logger.info(f"Retrieved film: {film}")
         return film
@@ -97,14 +109,10 @@ class FilmService:
         try:
             films_list = await self.search_engine.search(
                 index=settings.movies_index,
-                query={
-                    "bool": {
-                        "must": [query]
-                    }
-                },
+                query={"bool": {"must": [query]}},
                 sort=[{"imdb_rating": {"order": sort_type}}],
                 from_=offset,
-                size=page_size
+                size=page_size,
             )
 
             logger.debug(f"Retrieved films {films_list}")
@@ -112,14 +120,16 @@ class FilmService:
             return None
 
         if isinstance(films_list, dict):
-            films = [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+            films = [
+                Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]
+            ]
         else:
             films = [Film(**get_film) for get_film in films_list]
 
         await self.cache_engine.put_by_key(
             json.dumps([film.json() for film in films]),
             settings.film_cache_expire_in_seconds,
-            *cache_key_args
+            *cache_key_args,
         )
 
         return films
@@ -138,7 +148,7 @@ class FilmService:
         except Exception as e:
             logger.error(f"Error searching for films with query '{query}': {e}")
             return None
-        
+
         logger.debug(f"Searched films {films_list}")
         return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
