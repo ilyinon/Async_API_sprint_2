@@ -15,6 +15,7 @@ async def test_persons_search(
         "{service_url}/api/v1/persons/search?page_size=50&page_number=1&query=James"
     )
     url = url_template.format(service_url=settings.app_dsn)
+
     async with session.get(url) as response:
 
         body = await response.json()
@@ -29,6 +30,7 @@ async def test_get_person_by_id(
     url_template = "{service_url}/api/v1/persons/{id}/"
     id = PERSONS_DATA[random.randrange(len(PERSONS_DATA))]["id"]
     url = url_template.format(service_url=settings.app_dsn, id=id)
+
     async with session.get(url) as response:
 
         assert response.status == http.HTTPStatus.OK
@@ -40,6 +42,7 @@ async def test_get_person_films_by_id(
     url_template = "{service_url}/api/v1/persons/{id}/film"
     id = PERSONS_DATA[random.randrange(len(PERSONS_DATA))]["id"]
     url = url_template.format(service_url=settings.app_dsn, id=id)
+
     async with session.get(url) as response:
 
         assert response.status == http.HTTPStatus.OK
@@ -53,6 +56,7 @@ async def test_get_persons_by_not_existen_id(
     url_template = "{service_url}/api/v1/persons/{id}/"
     id = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb"
     url = url_template.format(service_url=settings.app_dsn, id=id)
+
     async with session.get(url) as response:
 
         assert response.status == http.HTTPStatus.NOT_FOUND
@@ -64,6 +68,7 @@ async def test_get_persons_with_id_invalid(
     url_template = "{service_url}/api/v1/persons/{id}/"
     id = "not_valid_uuid"
     url = url_template.format(service_url=settings.app_dsn, id=id)
+
     async with session.get(url) as response:
 
         assert response.status == http.HTTPStatus.UNPROCESSABLE_ENTITY
@@ -76,6 +81,7 @@ async def test_persons_search_invalid(
         "{service_url}/api/v1/persons/search?this_search_not_existen"
     )
     url = url_template.format(service_url=settings.app_dsn)
+
     async with session.get(url) as response:
 
         body = await response.json()
