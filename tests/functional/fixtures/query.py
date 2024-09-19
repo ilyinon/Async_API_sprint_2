@@ -14,11 +14,9 @@ from tests.functional.testdata.genres import GENRES_DATA
 from tests.functional.testdata.movies import MOVIES_DATA
 from tests.functional.testdata.persons import PERSONS_DATA
 
-# TODO: НЕ пробрасыавется корректно
-
-TEST_GENRES = "genres_test"
-TEST_PERSONS = "persons_test"
-TEST_MOVIES = "movies_test"
+TEST_GENRES = settings.genres_index
+TEST_PERSONS = settings.persons_index
+TEST_MOVIES = settings.movies_index
 
 
 def get_str_query(index, data):
