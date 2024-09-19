@@ -77,7 +77,7 @@ class FilmService:
         return film
 
     async def get_list(self, sort, genre, page_size, page_number):
-        cache_key_args = ("films_list", page_size, page_number)
+        cache_key_args = ("films_list", page_size, page_number, sort)
         cached_data = await self.cache_engine.get_by_key(*cache_key_args, Object=Film)
 
         if cached_data:
