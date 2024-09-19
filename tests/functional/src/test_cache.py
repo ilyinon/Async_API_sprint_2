@@ -20,7 +20,6 @@ async def test_genres_search_cache(session, es_client, redis_client, genres_inde
     async with session.get(url) as response:
 
         cached_data = await redis_client.get(cache_key)
-
         assert len(json.loads(cached_data)) == len(GENRES_DATA)
 
 
@@ -33,7 +32,7 @@ async def test_get_person_by_id_cache(
 
     async with session.get(url) as response:
 
-        cached_data = await redis_client.get(str(id))
+        cached_data = await redis_client.get(f"person:{str(id)}")
 
         assert json.loads(cached_data).get("id") == id
 
@@ -43,8 +42,7 @@ async def test_movies_search_sort_asc_cache(
 ):
     url_template = "{service_url}/api/v1/films/?sort=imdb_rating"
     url = url_template.format(service_url=settings.app_dsn)
-    key_str = "films:['imdb_rating']:None:50:1"
-    cache_key = hashlib.md5(key_str.encode()).hexdigest()
+    cache_key = "films_list:50:1:['imdb_rating']"
 
     async with session.get(url) as response:
 
