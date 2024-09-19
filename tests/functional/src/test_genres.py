@@ -6,8 +6,8 @@ import pytest
 from tests.functional.settings import settings
 from tests.functional.testdata.genres import GENRES_DATA
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
 async def test_genres_search(session, es_client, genres_index_create, genres_data_load):
     url_template = "{service_url}/api/v1/genres/"
     url = url_template.format(service_url=settings.app_dsn)
@@ -17,7 +17,6 @@ async def test_genres_search(session, es_client, genres_index_create, genres_dat
         assert len(body) == len(GENRES_DATA)
 
 
-@pytest.mark.asyncio
 async def test_get_genre_by_id(
     session, es_client, genres_index_create, genres_data_load
 ):
@@ -28,7 +27,6 @@ async def test_get_genre_by_id(
         assert response.status == http.HTTPStatus.OK
 
 
-@pytest.mark.asyncio
 async def test_get_genre_by_not_existen_id(
     session,
     es_client,
