@@ -6,8 +6,8 @@ import pytest
 from tests.functional.settings import settings
 from tests.functional.testdata.persons import PERSONS_DATA
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
 async def test_persons_search(
     session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
@@ -21,7 +21,6 @@ async def test_persons_search(
         assert body[0]["uuid"] == "807ce9c3-6294-485c-803a-1975066f239f"
 
 
-@pytest.mark.asyncio
 async def test_get_person_by_id(
     session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
@@ -32,7 +31,6 @@ async def test_get_person_by_id(
         assert response.status == http.HTTPStatus.OK
 
 
-@pytest.mark.asyncio
 async def test_get_person_films_by_id(
     session, es_client, persons_index_create, persons_data_load, movies_index_create, movies_data_load
 ):
@@ -43,7 +41,6 @@ async def test_get_person_films_by_id(
         assert response.status == http.HTTPStatus.OK
 
 
-@pytest.mark.asyncio
 async def test_get_persons_by_not_existen_id(
     session,
     es_client,
