@@ -1,8 +1,7 @@
-import hashlib
 import json
 import logging
 from functools import lru_cache
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from core.config import settings
 from db.elastic import get_elastic
@@ -11,23 +10,76 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
 from models.film import Film, FilmDetail
 from redis.asyncio import Redis
-from services.base import BaseServiceElastic, BaseServiceRedis
+from services.cache import BaseCache, RedisCacheEngine
+from services.search import BaseSearch, ElasticAsyncSearchEngine
 
 logger = logging.getLogger(__name__)
 
 
-class FilmService(BaseServiceRedis, BaseServiceElastic):
-    def _generate_cache_key(self, sort, genre, page_size, page_number):
-        key_str = f"films:{sort}:{genre}:{page_size}:{page_number}"
-        return hashlib.md5(key_str.encode()).hexdigest()
+class FilmService:
+    def __init__(self, cache_engine: BaseCache, search_engine: BaseSearch):
+        self.search_engine = search_engine
+        self.cache_engine = cache_engine
 
-    async def get_by_id(self, film_id):
-        return await self._get_by_id(film_id, FilmDetail)
+    async def get_by_id(self, film_id: UUID) -> FilmDetail | None:
+
+        film = await self.cache_engine.get_by_id("film", film_id, FilmDetail)
+        try:
+            film_data = await self.search_engine.get_by_id(
+                settings.movies_index, film_id
+            )
+
+            if not film_data:
+                return None
+
+        except NotFoundError:
+            return None
+
+        except Exception as e:
+            logger.error(f"Error retrieving film by id {film_id}: {e}")
+            return None
+
+        if "genres" in film_data:
+            film_data["genres"] = [
+                (
+                    {"id": genre["id"], "name": genre["name"]}
+                    if isinstance(genre, dict)
+                    else {"id": str(uuid4()), "name": genre}
+                )
+                for genre in film_data["genres"]
+            ]
+
+        if "actors" in film_data:
+            film_data["actors"] = [
+                {"id": actor.get("id", None), "full_name": actor.get("name", "")}
+                for actor in film_data["actors"]
+            ]
+
+        if "writers" in film_data:
+            film_data["writers"] = [
+                {"id": writer.get("id", None), "full_name": writer.get("name", "")}
+                for writer in film_data["writers"]
+            ]
+
+        if "directors" in film_data:
+            film_data["directors"] = [
+                {"id": director.get("id", None), "full_name": director.get("name", "")}
+                for director in film_data["directors"]
+            ]
+
+        film = FilmDetail(**film_data)
+
+        await self.cache_engine.put_by_id(
+            "film", film, settings.film_cache_expire_in_seconds
+        )
+
+        logger.info(f"Retrieved film: {film}")
+        return film
 
     async def get_list(self, sort, genre, page_size, page_number):
-        cache_key = self._generate_cache_key(sort, genre, page_size, page_number)
+        cache_key_args = ("films_list", page_size, page_number, sort)
+        cached_data = await self.cache_engine.get_by_key(*cache_key_args, Object=Film)
 
-        cached_data = await self.redis.get(cache_key)
         if cached_data:
             return [Film.parse_raw(film) for film in json.loads(cached_data)]
 
@@ -40,7 +92,7 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
             sort_type = "desc"
 
         if genre:
-            genre_response = await self.elastic.search(
+            genre_response = await self.search_engine.search(
                 index=settings.genres_index, query={"multi_match": {"query": genre}}
             )
             genre_names = " ".join(
@@ -55,24 +107,29 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
         offset = (page_number - 1) * page_size
 
         try:
-            films_list = await self.elastic.search(
+            films_list = await self.search_engine.search(
                 index=settings.movies_index,
-                body={
-                    "query": query,
-                    "sort": [{"imdb_rating": {"order": sort_type}}],
-                    "from": offset,
-                    "size": page_size,
-                },
+                query={"bool": {"must": [query]}},
+                sort=[{"imdb_rating": {"order": sort_type}}],
+                from_=offset,
+                size=page_size,
             )
+
             logger.debug(f"Retrieved films {films_list}")
         except NotFoundError:
             return None
 
-        films = [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
-        await self.redis.set(
-            cache_key,
+        if isinstance(films_list, dict):
+            films = [
+                Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]
+            ]
+        else:
+            films = [Film(**get_film) for get_film in films_list]
+
+        await self.cache_engine.put_by_key(
             json.dumps([film.json() for film in films]),
             settings.film_cache_expire_in_seconds,
+            *cache_key_args,
         )
 
         return films
@@ -80,7 +137,7 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
     async def search_film(self, query, page_size, page_number):
         offset = (page_number - 1) * page_size
         try:
-            films_list = await self.elastic.search(
+            films_list = await self.search_engine.search(
                 index=settings.movies_index,
                 from_=offset,
                 size=page_size,
@@ -88,60 +145,12 @@ class FilmService(BaseServiceRedis, BaseServiceElastic):
             )
         except NotFoundError:
             return None
-        logger.debug(f"Searched films {films_list}")
-        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
-
-    async def _get_object_from_elastic(self, film_id: UUID) -> FilmDetail | None:
-        try:
-            doc = await self.elastic.get(index=settings.movies_index, id=film_id)
-            genres = doc["_source"].get("genres", [])
-            logger.debug(f"genres list: {genres}")
-            genres_list = []
-            for genre in genres:
-                response = await self.elastic.search(
-                    index=settings.genres_index, query={"multi_match": {"query": genre}}
-                )
-
-                genres_list.append(response["hits"]["hits"][0]["_source"])
-            actors = doc["_source"].get("actors", [])
-            if isinstance(actors, str):
-                actors = []
-
-            writers = doc["_source"].get("writers", [])
-            if isinstance(writers, str):
-                writers = []
-
-            directors = doc["_source"].get("directors", [])
-            if isinstance(directors, str):
-                directors = []
-        except NotFoundError:
-            logger.error(f"Film with ID {film_id} not found in Elasticsearch")
+        except Exception as e:
+            logger.error(f"Error searching for films with query '{query}': {e}")
             return None
 
-        film_data = {
-            "id": doc["_source"].get("id"),
-            "title": doc["_source"].get("title"),
-            "imdb_rating": doc["_source"].get("imdb_rating"),
-            "description": doc["_source"].get("description", ""),
-            "genres": genres_list,
-            "actors": [
-                {"id": actor.get("id"), "full_name": actor.get("name")}
-                for actor in actors
-                if isinstance(actor, dict)
-            ],
-            "writers": [
-                {"id": writer.get("id"), "full_name": writer.get("name")}
-                for writer in writers
-                if isinstance(writer, dict)
-            ],
-            "directors": [
-                {"id": director.get("id"), "full_name": director.get("name")}
-                for director in directors
-                if isinstance(director, dict)
-            ],
-        }
-        logger.debug("Got film details {film_data}")
-        return FilmDetail(**film_data)
+        logger.debug(f"Searched films {films_list}")
+        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
 
 @lru_cache()
@@ -149,4 +158,11 @@ def get_film_service(
     redis: Redis = Depends(get_redis),
     elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
-    return FilmService(redis, elastic)
+
+    redis_cache_engine = RedisCacheEngine(redis)
+    cache_engine = BaseCache(redis_cache_engine)
+
+    elastic_search_engine = ElasticAsyncSearchEngine(elastic)
+    search_engine = BaseSearch(search_engine=elastic_search_engine)
+
+    return FilmService(cache_engine, search_engine)

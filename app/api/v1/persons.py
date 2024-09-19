@@ -40,6 +40,8 @@ async def person_search_list(
 ):
     persons = await person_service.get_search_list(query, page_number, page_size)
     persons_response = []
+    if not persons:
+        return []
     for person in persons:
         films = []
         for film in person.films:
