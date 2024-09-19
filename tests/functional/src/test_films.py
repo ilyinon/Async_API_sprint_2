@@ -65,9 +65,17 @@ async def test_movies_search_too_huge_page(
         assert len(body) == 0
 
 
-async def test_get_movie_by_invalid_id(session, es_client, movies_index_create):
+async def test_get_movie_by_not_existed_id(session, es_client, movies_index_create):
     url_template = "{service_url}/api/v1/films/{id}/"
     id = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb"
     url = url_template.format(service_url=settings.app_dsn, id=id)
     async with session.get(url) as response:
         assert response.status == http.HTTPStatus.NOT_FOUND
+
+
+async def test_get_movie_by_invalid_id(session, es_client, movies_index_create):
+    url_template = "{service_url}/api/v1/films/{id}/"
+    id = "not_valid_uuid"
+    url = url_template.format(service_url=settings.app_dsn, id=id)
+    async with session.get(url) as response:
+        assert response.status == http.HTTPStatus.UNPROCESSABLE_ENTITY

@@ -37,3 +37,14 @@ async def test_get_genre_by_not_existen_id(
     url = url_template.format(service_url=settings.app_dsn, id=id)
     async with session.get(url) as response:
         assert response.status == http.HTTPStatus.NOT_FOUND
+
+async def test_get_genre_by_invalid_id(
+    session,
+    es_client,
+    genres_index_create,
+):
+    url_template = "{service_url}/api/v1/genres/{id}/"
+    id = "not_valid_uuid"
+    url = url_template.format(service_url=settings.app_dsn, id=id)
+    async with session.get(url) as response:
+        assert response.status == http.HTTPStatus.UNPROCESSABLE_ENTITY
